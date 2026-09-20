@@ -1,47 +1,44 @@
-import { getCurrentUser } from '@/app/actions/auth';
-import { logout } from '@/app/actions/auth';
+import Link from 'next/link';
 
-export async function Header() {
-  const { user, role } = await getCurrentUser();
-
-  const getRoleBadgeColor = () => {
-    switch (role) {
-      case 'superadmin':
-        return 'bg-purple-100 text-purple-800 border-purple-300';
-      case 'admin':
-        return 'bg-blue-100 text-blue-800 border-blue-300';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
-    }
+interface HeaderProps {
+  user?: {
+    name?: string;
+    email?: string;
+    role?: string;
   };
+}
+
+export function Header({ user }: HeaderProps) {
+  const displayName = user?.name || user?.email?.split('@')[0] || 'User';
 
   return (
-    <header className="h-16 border-b bg-white px-6 flex items-center justify-between shadow-sm">
-      <div className="text-sm font-semibold text-gray-700">Dashboard</div>
+    <header className="w-full bg-white border-b border-slate-200 px-6 py-3.5 sticky top-0 z-30">
+      <div className="max-w-5xl mx-auto flex items-center justify-between">
+        <Link href="/dashboard" className="text-base font-bold text-slate-900">
+          Dashboard
+        </Link>
 
-      {user && (
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-gray-900">
-              {user.name || user.email}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+            <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-semibold flex items-center justify-center">
+              {displayName.charAt(0).toUpperCase()}
             </span>
-            <span
-              className={`px-2 py-0.5 rounded-full font-bold uppercase border ${getRoleBadgeColor()}`}
-            >
-              {role}
+            <span className="text-xs font-semibold text-slate-800">{displayName}</span>
+            <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full uppercase">
+              {user?.role || 'SUPERADMIN'}
             </span>
           </div>
 
-          <form action={logout}>
+          <form action="/auth/logout" method="POST">
             <button
               type="submit"
-              className="px-3 py-1 bg-red-50 text-red-600 rounded border border-red-200 hover:bg-red-100 font-medium transition"
+              className="text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-full transition-colors cursor-pointer"
             >
               Logout
             </button>
           </form>
         </div>
-      )}
+      </div>
     </header>
   );
 }

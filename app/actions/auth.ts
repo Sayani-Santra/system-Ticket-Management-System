@@ -64,16 +64,14 @@ export async function login(formData: FormData) {
 }
 
 // 3. Logout Action
-export async function logout() {
+export async function logout(): Promise<{ success: boolean }> {
   try {
     const { account } = await createSessionClient();
     await account.deleteSession('current');
-
-    const cookieStore = await cookies();
-    cookieStore.delete('session');
   } catch (error) {
-    console.error('Logout Action Error:', error);
-  }
+}
+const cookieStore = await cookies();
+cookieStore.delete('session');
 
-  redirect('/login');
+return {success: true};
 }

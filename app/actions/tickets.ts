@@ -7,6 +7,8 @@ import { ID, Query, Permission, Role, Models } from 'node-appwrite';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+// --- Type Definitions ---
+
 export interface GetTicketsFilters {
   status?: string;
   priority?: string;
@@ -14,17 +16,102 @@ export interface GetTicketsFilters {
   assignedTo?: string;
 }
 
-// Helper to check if current user is staff (Admin or Super Admin)
+export type TicketPriority = 'low' | 'medium' | 'high' | 'critical' | 'urgent';
+
+export interface TicketDocument extends Models.Document {
+  title: string;
+  description?: string;
+  status: string;
+  priority: string;
+  categoryId?: string;
+  category?: string;
+  raisedById?: string;
+  userId?: string;
+  assignedToId?: string;
+  assignedTo?: string;
+  assignedToName?: string;
+  isEscalated?: boolean;
+  isOverdue?: boolean;
+}
+
+export interface TicketActivity {
+  $id?: string;
+  ticketId: string;
+  performedBy: string;
+  action: 'CREATED' | 'UPDATED' | 'STATUS_CHANGED' | 'ASSIGNED' | 'RESOLVED' | 'REOPENED';
+  details: string;
+  previousValue?: string;
+  newValue?: string;
+  $createdAt?: string;
+}
+
+// --- Helper Functions ---
+
 async function verifyStaff() {
   const { user, role } = await getCurrentUser();
-  if (!user || (role !== 'admin' && role !== 'superadmin')) {
+  if (!user || (role as string) === 'user') {
     throw new Error('Unauthorized: Staff access required.');
   }
   return { user, role };
 }
 
+// Helper to log audit activity into Appwrite
+export async function logTicketActivity(activity: Omit<TicketActivity, '$id'| '$createdAt'>) {
+  try {
+    const { databases } = await createAdminClient();
+
+    if (APPWRITE_CONFIG.collections.activities) {
+      await databases.createDocument(
+        APPWRITE_CONFIG.databaseId,
+        APPWRITE_CONFIG.collections.activities,
+        ID.unique(),
+        {
+          ...activity,
+          timestamp: new Date().toISOString(),
+        }
+      );
+    }
+  } catch (error) {
+    console.error('Failed to log ticket activity:', error);
+  }
+}
+
+// Fetch complete activity log for a specific ticket
+export async function getTicketActivities(ticketId: string) {
+  // Guard check: prevent Appwrite query if ticketId is invalid or empty
+  if (!ticketId || typeof ticketId !== 'string' || !ticketId.trim()) {
+    return { activities: [] };
+  }
+
+  try {
+    const { databases } = await createAdminClient();
+    const activitiesCollection = (APPWRITE_CONFIG.collections as Record<string, string | undefined>).activities;
+
+    if (!activitiesCollection) {
+      return { activities: [] };
+    }
+
+    const response = await databases.listDocuments(
+      APPWRITE_CONFIG.databaseId,
+      activitiesCollection,
+      [
+        Query.equal('ticketId', ticketId.trim()), 
+        Query.orderDesc('$createdAt')
+      ]
+    );
+
+    return { activities: response.documents as unknown as TicketActivity[] };
+  } catch (error) {
+    console.error('Error fetching ticket activities:', error);
+    return { activities: [] };
+  }
+}
+// --- Core Ticket Actions ---
+
 // 1. Create Ticket Action
 export async function createTicket(formData: FormData) {
+  const ticketNumber = `TKT-${Math.floor(100000 + Math.random() * 900000)}`;
+
   const { user } = await getCurrentUser();
 
   if (!user) {
@@ -44,21 +131,21 @@ export async function createTicket(formData: FormData) {
   try {
     const { databases } = await createSessionClient();
 
-    await databases.createDocument(
+    const createdDoc = await databases.createDocument(
       APPWRITE_CONFIG.databaseId,
       APPWRITE_CONFIG.collections.tickets,
       ID.unique(),
+    
       {
         title,
         description,
         categoryId,
+        ticketNumber,
         priority,
         status: 'new',
         raisedById: user.$id,
         assignedToId: null,
         assignedToName: null,
-        attachmentId,
-        resolutionNote: null,
         isEscalated: false,
       },
       [
@@ -67,6 +154,14 @@ export async function createTicket(formData: FormData) {
         Permission.read(Role.any()),
       ]
     );
+
+    await logTicketActivity({
+      ticketId: createdDoc.$id,
+      performedBy: user.name || user.email || 'User',
+      action: 'CREATED',
+      details: `Ticket created with title: "${title}"`,
+      newValue: 'new',
+    });
 
     revalidatePath('/tickets');
   } catch (error: any) {
@@ -77,35 +172,73 @@ export async function createTicket(formData: FormData) {
   redirect('/tickets');
 }
 
-// 2. Update Ticket Status
+// 2. Update Ticket Status Action
 export async function updateTicketStatus(
   ticketId: string,
-  status: string,
-  resolutionNote?: string
+  newStatus: string,
+  resolutionNote?: string,
+  assignedToId?: string,
+  assignedToName?: string
 ) {
   const { user } = await getCurrentUser();
   if (!user) return { error: 'Unauthorized access.' };
 
   try {
-    const { databases } = await createSessionClient();
+    const { databases } = await createAdminClient();
 
-    const updateData: Record<string, any> = { status };
+    const existingTicket = await databases.getDocument<TicketDocument>(
+      APPWRITE_CONFIG.databaseId,
+      APPWRITE_CONFIG.collections.tickets,
+      ticketId
+    );
+
+    const updates: Record<string, any> = { status: newStatus };
     if (resolutionNote !== undefined) {
-      updateData.resolutionNote = resolutionNote.trim();
+      updates.resolutionNote = resolutionNote.trim();
     }
+    if (assignedToId) updates.assignedToId = assignedToId;
+    if (assignedToName) updates.assignedToName = assignedToName;
 
     await databases.updateDocument(
       APPWRITE_CONFIG.databaseId,
       APPWRITE_CONFIG.collections.tickets,
       ticketId,
-      updateData
+      updates
     );
+
+    const actor = user.name || user.email || 'System Admin';
+
+    if (existingTicket.status !== newStatus) {
+      let actionType: TicketActivity['action'] = 'STATUS_CHANGED';
+      if (['resolved', 'closed'].includes(newStatus)) actionType = 'RESOLVED';
+      if (newStatus === 'reopened') actionType = 'REOPENED';
+
+      await logTicketActivity({
+        ticketId,
+        performedBy: actor,
+        action: actionType,
+        details: `Status updated from "${existingTicket.status}" to "${newStatus}"`,
+        previousValue: existingTicket.status,
+        newValue: newStatus,
+      });
+    }
+
+    if (assignedToName && existingTicket.assignedToName !== assignedToName) {
+      await logTicketActivity({
+        ticketId,
+        performedBy: actor,
+        action: 'ASSIGNED',
+        details: `Ticket assigned to ${assignedToName}`,
+        previousValue: existingTicket.assignedToName || 'Unassigned',
+        newValue: assignedToName,
+      });
+    }
 
     revalidatePath(`/tickets/${ticketId}`);
     revalidatePath('/tickets');
     return { success: true };
   } catch (error: any) {
-    return { error: error?.message || 'Failed to update ticket status.' };
+    return { error: error?.message || 'Failed to update ticket.' };
   }
 }
 
@@ -124,7 +257,13 @@ export async function reopenTicket(ticketId: string) {
   if (!user) return { error: 'Unauthorized access.' };
 
   try {
-    const { databases } = await createSessionClient();
+    const { databases } = await createAdminClient();
+
+    const existingTicket = await databases.getDocument<TicketDocument>(
+      APPWRITE_CONFIG.databaseId,
+      APPWRITE_CONFIG.collections.tickets,
+      ticketId
+    );
 
     await databases.updateDocument(
       APPWRITE_CONFIG.databaseId,
@@ -135,6 +274,15 @@ export async function reopenTicket(ticketId: string) {
         resolutionNote: null,
       }
     );
+
+    await logTicketActivity({
+      ticketId,
+      performedBy: user.name || user.email || 'User',
+      action: 'REOPENED',
+      details: 'Ticket was reopened by user.',
+      previousValue: existingTicket.status,
+      newValue: 'in_progress',
+    });
 
     revalidatePath(`/tickets/${ticketId}`);
     revalidatePath('/tickets');
@@ -150,7 +298,13 @@ export async function escalateTicket(ticketId: string) {
   if (!user) return { error: 'Unauthorized access.' };
 
   try {
-    const { databases } = await createSessionClient();
+    const { databases } = await createAdminClient();
+
+    const existingTicket = await databases.getDocument<TicketDocument>(
+      APPWRITE_CONFIG.databaseId,
+      APPWRITE_CONFIG.collections.tickets,
+      ticketId
+    );
 
     await databases.updateDocument(
       APPWRITE_CONFIG.databaseId,
@@ -158,9 +312,18 @@ export async function escalateTicket(ticketId: string) {
       ticketId,
       {
         isEscalated: true,
-        priority: 'urgent',
+        priority: 'critical',
       }
     );
+
+    await logTicketActivity({
+      ticketId,
+      performedBy: user.name || user.email || 'User',
+      action: 'UPDATED',
+      details: 'Ticket priority escalated to critical.',
+      previousValue: existingTicket.priority,
+      newValue: 'critical',
+    });
 
     revalidatePath(`/tickets/${ticketId}`);
     revalidatePath('/tickets');
@@ -177,8 +340,14 @@ export async function assignTicket(
   assigneeName?: string
 ) {
   try {
-    await verifyStaff();
-    const { databases } = await createSessionClient();
+    const { user } = await verifyStaff();
+    const { databases } = await createAdminClient();
+
+    const existingTicket = await databases.getDocument<TicketDocument>(
+      APPWRITE_CONFIG.databaseId,
+      APPWRITE_CONFIG.collections.tickets,
+      ticketId
+    );
 
     const updateData: Record<string, any> = {
       assignedToId: assigneeId,
@@ -195,6 +364,15 @@ export async function assignTicket(
       ticketId,
       updateData
     );
+
+    await logTicketActivity({
+      ticketId,
+      performedBy: user.name || user.email || 'Admin',
+      action: 'ASSIGNED',
+      details: `Ticket assigned to ${assigneeName || assigneeId}`,
+      previousValue: existingTicket.assignedToName || 'Unassigned',
+      newValue: assigneeName || assigneeId,
+    });
 
     revalidatePath(`/tickets/${ticketId}`);
     revalidatePath('/tickets');
@@ -215,18 +393,17 @@ export async function pickupTicket(ticketId: string) {
   }
 }
 
-// 8. Update Ticket Status & Priority Dynamically (Server Admin Control Panel)
+// 8. Update Ticket Status & Priority Dynamically
 export async function updateTicketStatusAndPriority(formData: FormData) {
   try {
-    await verifyStaff();
-    const { databases } = await createSessionClient();
+    const { user } = await verifyStaff();
+    const { databases } = await createAdminClient();
 
     const ticketId = formData.get('ticketId') as string;
     const status = formData.get('status') as string;
     const priority = formData.get('priority') as string;
 
-    // Fetch the existing document to preserve its current isEscalated value
-    const existingTicket = await databases.getDocument(
+    const existingTicket = await databases.getDocument<TicketDocument>(
       APPWRITE_CONFIG.databaseId,
       APPWRITE_CONFIG.collections.tickets,
       ticketId
@@ -243,6 +420,15 @@ export async function updateTicketStatusAndPriority(formData: FormData) {
       }
     );
 
+    await logTicketActivity({
+      ticketId,
+      performedBy: user.name || user.email || 'Admin',
+      action: 'UPDATED',
+      details: `Updated status to "${status}" and priority to "${priority}"`,
+      previousValue: `Status: ${existingTicket.status}, Priority: ${existingTicket.priority}`,
+      newValue: `Status: ${status}, Priority: ${priority}`,
+    });
+
     revalidatePath(`/tickets/${ticketId}`);
     revalidatePath('/tickets');
     return { success: true };
@@ -258,10 +444,10 @@ export async function getTickets(filters?: GetTicketsFilters) {
 
     if (!user) return { tickets: [], error: 'Unauthorized' };
 
-    const { databases } = await createSessionClient();
+    const { databases } = await createAdminClient();
     const queries: string[] = [Query.orderDesc('$createdAt')];
 
-    if (role === 'user') {
+    if ((role as string) === 'user') {
       queries.push(Query.equal('raisedById', user.$id));
     } else if (filters?.assignedTo === 'unassigned') {
       queries.push(Query.isNull('assignedToId'));
@@ -281,7 +467,7 @@ export async function getTickets(filters?: GetTicketsFilters) {
       queries.push(Query.search('title', filters.search.trim()));
     }
 
-    const response = await databases.listDocuments(
+    const response = await databases.listDocuments<TicketDocument>(
       APPWRITE_CONFIG.databaseId,
       APPWRITE_CONFIG.collections.tickets,
       queries
@@ -300,13 +486,13 @@ export async function getTicketComments(ticketId: string) {
   if (!user) return { comments: [], error: 'Unauthorized' };
 
   try {
-    const { databases } = await createSessionClient();
+    const { databases } = await createAdminClient();
     const queries = [
       Query.equal('ticketId', ticketId),
       Query.orderAsc('$createdAt'),
     ];
 
-    if (role === 'user') {
+    if ((role as string) === 'user') {
       queries.push(Query.equal('isInternal', false));
     }
 
@@ -335,10 +521,11 @@ export async function addComment(formData: FormData) {
     return { error: 'Comment body is required.' };
   }
 
-  const isAdmin = role === 'admin' || role === 'superadmin';
+  const userRole = role as string;
+  const isAdmin = ['admin', 'superadmin', 'server_admin', 'super_admin'].includes(userRole);
 
   try {
-    const { databases } = await createSessionClient();
+    const { databases } = await createAdminClient();
     await databases.createDocument(
       APPWRITE_CONFIG.databaseId,
       APPWRITE_CONFIG.collections.comments,
@@ -375,5 +562,177 @@ export async function getAdminUsers() {
   } catch (error) {
     console.error('Failed to fetch admins:', error);
     return { admins: [] };
+  }
+}
+
+// 13. Get Dashboard Metrics
+export async function getDashboardMetrics(profile: any) {
+  try {
+    const { databases } = await createAdminClient();
+
+    const response = await databases.listDocuments<TicketDocument>(
+      APPWRITE_CONFIG.databaseId,
+      APPWRITE_CONFIG.collections.tickets,
+      [Query.limit(500), Query.orderDesc('$createdAt')]
+    );
+
+    const allTickets = response.documents;
+    const currentUserId = profile?.userId || profile?.$id;
+
+    const userTickets = allTickets.filter(
+      (t) => t.raisedById === currentUserId || t.userId === currentUserId
+    );
+    const assignedTickets = allTickets.filter(
+      (t) => t.assignedToId === currentUserId || t.assignedTo === currentUserId
+    );
+
+    const totalTicketsCount = allTickets.length;
+    const openTicketsCount = allTickets.filter((t) =>
+      ['new', 'open', 'in_progress'].includes(t.status)
+    ).length;
+    const closedTicketsCount = allTickets.filter((t) =>
+      ['closed', 'resolved'].includes(t.status)
+    ).length;
+    const reopenedTicketsCount = allTickets.filter((t) => t.status === 'reopened').length;
+    const escalatedTicketsCount = allTickets.filter((t) => t.isEscalated === true).length;
+
+    const ticketsByCategory: Record<string, number> = {};
+    const ticketsByPriority: Record<string, number> = { low: 0, medium: 0, high: 0, critical: 0, urgent: 0 };
+    const ticketsByAdmin: Record<string, number> = {};
+    const adminPerformanceMap: Record<
+      string,
+      { name: string; assignedCount: number; resolvedCount: number; totalResolutionTimeMs: number }
+    > = {};
+
+    let totalResolutionTimeMs = 0;
+    let resolvedCountWithTime = 0;
+
+    allTickets.forEach((t) => {
+      const cat = t.category || t.categoryId || 'Uncategorized';
+      ticketsByCategory[cat] = (ticketsByCategory[cat] || 0) + 1;
+
+      if (t.priority && ticketsByPriority[t.priority] !== undefined) {
+        ticketsByPriority[t.priority] += 1;
+      }
+
+      const adminId = t.assignedToId || t.assignedTo;
+      const adminName = t.assignedToName || adminId || 'Unassigned';
+
+      if (adminId) {
+        ticketsByAdmin[adminName] = (ticketsByAdmin[adminName] || 0) + 1;
+
+        if (!adminPerformanceMap[adminId]) {
+          adminPerformanceMap[adminId] = {
+            name: adminName,
+            assignedCount: 0,
+            resolvedCount: 0,
+            totalResolutionTimeMs: 0,
+          };
+        }
+
+        adminPerformanceMap[adminId].assignedCount += 1;
+
+        if (['resolved', 'closed'].includes(t.status)) {
+          adminPerformanceMap[adminId].resolvedCount += 1;
+        }
+      }
+
+      if (['resolved', 'closed'].includes(t.status) && t.$createdAt && t.$updatedAt) {
+        const created = new Date(t.$createdAt).getTime();
+        const updated = new Date(t.$updatedAt).getTime();
+        const duration = updated - created;
+
+        if (duration > 0) {
+          totalResolutionTimeMs += duration;
+          resolvedCountWithTime += 1;
+
+          if (adminId && adminPerformanceMap[adminId]) {
+            adminPerformanceMap[adminId].totalResolutionTimeMs += duration;
+          }
+        }
+      }
+    });
+
+    const avgResolutionTimeHours =
+      resolvedCountWithTime > 0
+        ? (totalResolutionTimeMs / (resolvedCountWithTime * 1000 * 60 * 60)).toFixed(1)
+        : '0.0';
+
+    const adminPerformanceSummary = Object.values(adminPerformanceMap).map((admin) => ({
+      name: admin.name,
+      assignedCount: admin.assignedCount,
+      resolvedCount: admin.resolvedCount,
+      avgResolutionTimeHours:
+        admin.resolvedCount > 0
+          ? (admin.totalResolutionTimeMs / (admin.resolvedCount * 1000 * 60 * 60)).toFixed(1)
+          : 'N/A',
+    }));
+
+    return {
+      reports: {
+        totalTicketsCount,
+        openTicketsCount,
+        closedTicketsCount,
+        reopenedTicketsCount,
+        escalatedTicketsCount,
+        ticketsByCategory,
+        ticketsByPriority,
+        ticketsByAdmin,
+        avgResolutionTimeHours: `${avgResolutionTimeHours} hrs`,
+        adminPerformanceSummary,
+      },
+      user: {
+        stats: {
+          totalRaised: userTickets.length,
+          open: userTickets.filter((t) => ['new', 'open', 'in_progress'].includes(t.status)).length,
+          resolved: userTickets.filter((t) => ['resolved', 'closed'].includes(t.status)).length,
+        },
+        recentTickets: userTickets.slice(0, 5),
+      },
+      serverAdmin: {
+        stats: {
+          assigned: assignedTickets.length,
+          inProgress: assignedTickets.filter((t) => t.status === 'in_progress').length,
+          critical: assignedTickets.filter((t) => ['critical', 'high', 'urgent'].includes(t.priority)).length,
+          overdue: assignedTickets.filter((t) => t.isOverdue === true).length,
+        },
+        recentUpdates: assignedTickets.slice(0, 5),
+      },
+      superAdmin: {
+        stats: {
+          totalTickets: totalTicketsCount,
+          openCount: openTicketsCount,
+          resolvedCount: closedTicketsCount,
+          escalatedCount: escalatedTicketsCount,
+        },
+        categoryBreakdown: ticketsByCategory,
+        priorityBreakdown: ticketsByPriority,
+        adminWorkload: adminPerformanceSummary,
+      },
+    };
+  } catch (error) {
+    console.error('Error in getDashboardMetrics:', error);
+    return {
+      reports: {
+        totalTicketsCount: 0,
+        openTicketsCount: 0,
+        closedTicketsCount: 0,
+        reopenedTicketsCount: 0,
+        escalatedTicketsCount: 0,
+        ticketsByCategory: {},
+        ticketsByPriority: { low: 0, medium: 0, high: 0, critical: 0, urgent: 0 },
+        ticketsByAdmin: {},
+        avgResolutionTimeHours: '0.0 hrs',
+        adminPerformanceSummary: [],
+      },
+      user: { stats: { totalRaised: 0, open: 0, resolved: 0 }, recentTickets: [] },
+      serverAdmin: { stats: { assigned: 0, inProgress: 0, critical: 0, overdue: 0 }, recentUpdates: [] },
+      superAdmin: {
+        stats: { totalTickets: 0, openCount: 0, resolvedCount: 0, escalatedCount: 0 },
+        categoryBreakdown: {},
+        priorityBreakdown: { low: 0, medium: 0, high: 0, critical: 0, urgent: 0 },
+        adminWorkload: [],
+      },
+    };
   }
 }

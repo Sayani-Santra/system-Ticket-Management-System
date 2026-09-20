@@ -28,6 +28,9 @@ export async function Sidebar() {
           >
             + Create Ticket
           </Link>
+          <Link href="/dashboard" className="flex items-center gap-2 text-slate-300 hover:text-white px-3 py-2 rounded-md">
+  📊 Dashboard
+</Link>
 
           {/* Super Admin Control Links */}
           {isSuperAdmin && (
@@ -41,6 +44,13 @@ export async function Sidebar() {
               >
                 👥 Manage Users & Admins
               </Link>
+              <Link
+      href="/admin/categories"
+      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-md"
+    >
+      📁 Category Management
+    </Link>
+
               <Link
                 href="/admin/workflow"
                 className="block px-3 py-2 rounded hover:bg-purple-900/50 text-purple-200"

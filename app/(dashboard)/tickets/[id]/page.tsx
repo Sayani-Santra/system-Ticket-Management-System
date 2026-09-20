@@ -1,9 +1,9 @@
 import { createSessionClient } from '@/app/lib/appwrite/server';
 import { APPWRITE_CONFIG } from '@/app/lib/appwrite/config';
 import { getCurrentUser } from '@/app/actions/auth';
-import { resolveTicket, getTicketComments, addComment } from '@/app/actions/tickets';
-import { getAdminStaffList, forceReassignTicket } from '@/app/actions/admin';
+import { resolveTicket, getTicketComments, addComment, getAdminUsers } from '@/app/actions/tickets';
 import { ServerAdminControlPanel } from '@/app/components/ServerAdminControlPanel';
+import ReassignTicketForm from './ReassignTicketForm'; // Adjust import path if needed
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 
@@ -15,7 +15,7 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
   const { id } = await params;
   const { user, role } = await getCurrentUser();
 
-  if (!user) return <div>Please log in to view this ticket.</div>;
+  if (!user) return <div className="p-6">Please log in to view this ticket.</div>;
 
   let ticket: any = null;
 
@@ -30,12 +30,15 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
     notFound();
   }
 
-  const { comments } = await getTicketComments(id);
-  const isAdmin = role === 'admin' || role === 'superadmin';
-  const isSuperAdmin = role === 'superadmin';
+  const userRole = (role as string) || '';
+  const isAdmin = ['admin', 'superadmin', 'server_admin'].includes(userRole);
+  const isSuperAdmin = userRole === 'superadmin';
 
-  // Fetch admins list if user is a Super Admin
-  const { admins } = isSuperAdmin ? await getAdminStaffList() : { admins: [] };
+  // Concurrently fetch comments and admin staff list for reassigning
+  const [{ comments }, { admins }] = await Promise.all([
+    getTicketComments(id),
+    isSuperAdmin ? getAdminUsers() : Promise.resolve({ admins: [] }),
+  ]);
 
   // Server Action handler for resolving tickets
   async function handleResolve(formData: FormData) {
@@ -52,7 +55,7 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
-      {/* Top Header */}
+      {/* Top Navigation & Status Badges */}
       <div className="flex items-center justify-between">
         <Link href="/tickets" className="text-sm text-blue-600 hover:underline">
           &larr; Back to Tickets
@@ -67,7 +70,7 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
         </div>
       </div>
 
-      {/* Ticket Details Box */}
+      {/* Main Ticket Information Card */}
       <div className="bg-white rounded-lg border p-6 space-y-4 shadow-sm">
         <div className="border-b pb-3">
           <p className="text-xs font-mono text-gray-500">ID: {ticket.$id}</p>
@@ -86,7 +89,7 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
           </div>
           <div>
             <span className="text-gray-500 block text-xs">Assigned To</span>
-            <span className="font-medium text-gray-800">
+            <span className="font-medium text-purple-900 font-semibold">
               {ticket.assignedToName || ticket.assignedToId || 'Unassigned'}
             </span>
           </div>
@@ -106,7 +109,7 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
           </p>
         </div>
 
-        {/* Attachment Link */}
+        {/* Attachment */}
         {ticket.attachmentId && (
           <div className="border-t pt-3">
             <h3 className="text-sm font-semibold text-gray-700 mb-1">Attachment</h3>
@@ -114,61 +117,31 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
           </div>
         )}
 
-        {/* Display Resolution Note */}
+        {/* Resolution Note Display */}
         {ticket.resolutionNote && (
-          <div className="border-t pt-3 bg-green-50 p-4 rounded-md border-green-200">
+          <div className="border-t pt-3 bg-green-50 p-4 rounded-md border border-green-200">
             <h3 className="text-sm font-semibold text-green-900">Resolution Note</h3>
             <p className="text-sm text-green-800 mt-1">{ticket.resolutionNote}</p>
           </div>
         )}
       </div>
 
-      {/* Server Admin Management Box (Sanitized to fix Next.js Client Component serialization) */}
+      {/* Server Admin Management Box */}
       {isAdmin && (
         <ServerAdminControlPanel ticket={JSON.parse(JSON.stringify(ticket))} />
       )}
 
-      {/* Super Admin Control Panel */}
+      {/* Super Admin Reassignment Controls (Using ReassignTicketForm) */}
       {isSuperAdmin && (
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 shadow-sm space-y-3">
           <h2 className="text-sm font-bold text-purple-900 uppercase tracking-wide">
             Super Admin Controls
           </h2>
-
-          <form
-            action={async (formData: FormData) => {
-              'use server';
-              await forceReassignTicket(formData);
-            }}
-            className="space-y-3"
-          >
-            <input type="hidden" name="ticketId" value={id} />
-
-            <div>
-              <label className="block text-xs font-medium text-purple-900 mb-1">
-                Reassign Ticket to Staff Member
-              </label>
-              <select
-                name="assigneeId"
-                required
-                className="w-full border rounded p-2 text-xs bg-white focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="">Select an admin...</option>
-                {admins.map((admin: any) => (
-                  <option key={admin.id} value={admin.id}>
-                    {admin.name} ({admin.role})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              type="submit"
-              className="px-4 py-2 bg-purple-700 text-white font-semibold text-xs rounded hover:bg-purple-800"
-            >
-              Reassign Ticket
-            </button>
-          </form>
+          <ReassignTicketForm
+            ticketId={id}
+            currentAssignedId={ticket.assignedToId}
+            admins={admins}
+          />
         </div>
       )}
 
@@ -218,7 +191,7 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
             required
             rows={3}
             placeholder="Write a message or update..."
-            className="w-full border rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
 
           <div className="flex items-center justify-between">
@@ -230,7 +203,7 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
             )}
             <button
               type="submit"
-              className="ml-auto px-4 py-2 bg-blue-600 text-white font-medium rounded-md text-sm hover:bg-blue-700"
+              className="ml-auto px-4 py-2 bg-blue-600 text-white font-medium rounded-md text-sm hover:bg-blue-700 transition"
             >
               Post Comment
             </button>
@@ -238,7 +211,7 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
         </form>
       </div>
 
-      {/* Admin/Support Resolution Section */}
+      {/* Support Staff Resolution Form */}
       {isAdmin && ticket.status !== 'resolved' && (
         <div className="bg-white rounded-lg border p-6 shadow-sm space-y-4">
           <h2 className="text-lg font-semibold text-gray-900">Resolve Ticket</h2>
@@ -248,11 +221,11 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
               required
               rows={3}
               placeholder="Provide details on how the issue was resolved..."
-              className="w-full border rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
               type="submit"
-              className="px-4 py-2 bg-green-600 text-white font-medium rounded-md text-sm hover:bg-green-700"
+              className="px-4 py-2 bg-green-600 text-white font-medium rounded-md text-sm hover:bg-green-700 transition"
             >
               Mark as Resolved
             </button>

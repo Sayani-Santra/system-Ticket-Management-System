@@ -1,126 +1,80 @@
-'use client';
-
-import { useState, useTransition } from 'react';
-import { createTicket } from '@/app/actions/tickets';
 import Link from 'next/link';
 
-export default function NewTicketPage() {
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  async function handleSubmit(formData: FormData) {
-    setError(null);
-
-    // Front-end check to make sure title is present
-    const title = formData.get('title') as string;
-    if (!title || !title.trim()) {
-      setError('Title is required to create a ticket.');
-      return;
-    }
-
-    startTransition(async () => {
-      const result = await createTicket(formData);
-      if (result?.error) {
-        setError(result.error);
-      }
-    });
-  }
-
+export default function CreateTicketPage() {
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="space-y-6">
+      {/* Header & Back Action */}
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Create Ticket</h1>
-          <p className="text-slate-500 text-sm">Submit a new issue to get support</p>
+          <p className="text-sm text-slate-500 mt-1">Submit a new issue to get support</p>
         </div>
         <Link
           href="/tickets"
-          className="text-sm font-medium text-slate-600 hover:text-slate-900"
+          className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
         >
           ← Back to Tickets
         </Link>
       </div>
 
-      <form
-        action={handleSubmit}
-        className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5"
-      >
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-            {error}
+      {/* Form Card */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs max-w-2xl mx-auto">
+        <form className="space-y-5">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+              Title <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g., Unable to connect to VPN"
+              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+            />
           </div>
-        )}
 
-        {/* Title Input */}
-        <div>
-          <label htmlFor="title" className="block text-sm font-medium text-slate-700 mb-1">
-            Title <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="title"
-            name="title"
-            type="text"
-            required
-            placeholder="e.g., Unable to connect to VPN"
-            className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-          />
-        </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+              Description
+            </label>
+            <textarea
+              rows={4}
+              placeholder="Provide relevant details about your issue..."
+              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none"
+            />
+          </div>
 
-        {/* Description Input */}
-        <div>
-          <label htmlFor="description" className="block text-sm font-medium text-slate-700 mb-1">
-            Description
-          </label>
-          <textarea
-            id="description"
-            name="description"
-            rows={4}
-            placeholder="Provide relevant details about your issue..."
-            className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-          />
-        </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                Priority
+              </label>
+              <select className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all">
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
 
-        {/* Priority Select */}
-        <div>
-          <label htmlFor="priority" className="block text-sm font-medium text-slate-700 mb-1">
-            Priority
-          </label>
-          <select
-            id="priority"
-            name="priority"
-            defaultValue="low"
-            className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                Category ID
+              </label>
+              <input
+                type="text"
+                placeholder="e.g., general"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-xs cursor-pointer"
           >
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="urgent">Urgent</option>
-          </select>
-        </div>
-
-        {/* Category Input (Optional) */}
-        <div>
-          <label htmlFor="categoryId" className="block text-sm font-medium text-slate-700 mb-1">
-            Category ID
-          </label>
-          <input
-            id="categoryId"
-            name="categoryId"
-            type="text"
-            placeholder="e.g., general"
-            className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-          />
-        </div>
-
-        {/* Submit Button */}
-        <button
-          type="submit"
-          disabled={isPending}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg text-sm transition disabled:opacity-50"
-        >
-          {isPending ? 'Submitting Ticket...' : 'Create Ticket'}
-        </button>
-      </form>
+            Create Ticket
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useRef } from 'react';
 import { addComment } from '@/app/actions/tickets';
 
 interface Comment {
@@ -22,14 +22,21 @@ export default function TicketComments({
 }) {
   const [isPending, startTransition] = useTransition();
   const [isInternal, setIsInternal] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
-  async function handleSubmit(formData: FormData) {
-    const content = formData.get('body') as string;
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const formData = new FormData(e.currentTarget);
+    formData.append('ticketId', ticketId);
+    formData.append('isInternal', String(isInternal));
 
     startTransition(async () => {
-      await addComment(ticketId, content);
+      await addComment(formData);
+      formRef.current?.reset();
+      setIsInternal(false);
     });
-  }
+  };
 
   const visibleComments = comments.filter((c) => !c.isInternal || isAdmin);
 
@@ -71,7 +78,7 @@ export default function TicketComments({
         )}
       </div>
 
-      <form action={handleSubmit} className="space-y-3">
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-3">
         <textarea
           name="body"
           rows={3}
