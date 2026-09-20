@@ -67,7 +67,6 @@ export function UserManager({
 
   return (
     <div className="space-y-6">
-      {/* Visible Search & Filter Toolbar */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm flex flex-wrap gap-4 items-center justify-between">
         <form method="GET" className="flex flex-wrap gap-3 flex-1 items-center">
           <input
@@ -75,15 +74,14 @@ export function UserManager({
             name="search"
             defaultValue={searchQuery}
             placeholder="Search by name..."
-            className="border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 rounded-md px-3 py-2 text-sm min-w-[200px] flex-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 rounded-md px-3 py-2 text-sm min-w-50 flex-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
 
           <select
             name="role"
-            defaultValue="user"
+            defaultValue={roleQuery || 'user'}
             className="border border-gray-300 bg-white text-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            {/* <option value="all" className="text-gray-900">All Roles</option> */}
             <option value="user" className="text-gray-900">User</option>
             <option value="server_admin" className="text-gray-900">Server Admin</option>
             <option value="superadmin" className="text-gray-900">Super Admin</option>
@@ -91,7 +89,7 @@ export function UserManager({
 
           <select
             name="status"
-            defaultValue={statusQuery}
+            defaultValue={statusQuery || 'all'}
             className="border border-gray-300 bg-white text-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="all" className="text-gray-900">All Statuses</option>
@@ -115,7 +113,6 @@ export function UserManager({
         </button>
       </div>
 
-      {/* Modal: Create User */}
       {isCreating && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full space-y-4 shadow-lg">
@@ -188,7 +185,6 @@ export function UserManager({
         </div>
       )}
 
-      {/* User Table List */}
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>

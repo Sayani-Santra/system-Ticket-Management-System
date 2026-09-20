@@ -6,7 +6,6 @@ import { getCurrentUser } from '@/app/actions/auth';
 import { ID, Query } from 'node-appwrite';
 import { revalidatePath } from 'next/cache';
 
-// 1. Get Current User Profile
 export async function getUserProfile() {
   const { user, role } = await getCurrentUser();
 
@@ -16,7 +15,6 @@ export async function getUserProfile() {
 
   try {
     const { databases } = await createAdminClient();
-
     let profileDoc = null;
 
     if (APPWRITE_CONFIG.collections.profiles) {
@@ -47,10 +45,9 @@ export async function getUserProfile() {
   }
 }
 
-// 2. Create User Action
 export async function createUser(formData: FormData) {
   const email = (formData.get('email') as string)?.trim();
-  const name = (formData.get('name') as string)?.trim();
+  const name = (formData.get('fullName') as string)?.trim() || (formData.get('name') as string)?.trim();
   const password = (formData.get('password') as string)?.trim();
   const role = (formData.get('role') as string) || 'user';
 
@@ -60,11 +57,8 @@ export async function createUser(formData: FormData) {
 
   try {
     const { users, databases } = await createAdminClient();
-
-    // Create the Auth User in Appwrite
     const newUser = await users.create(ID.unique(), email, undefined, password, name);
 
-    // Save user profile metadata in Database
     if (APPWRITE_CONFIG.collections.profiles) {
       await databases.createDocument(
         APPWRITE_CONFIG.databaseId,
@@ -88,10 +82,15 @@ export async function createUser(formData: FormData) {
   }
 }
 
-// 3. Update User Action
-export async function updateUser(userId: string, formData: FormData) {
-  const name = (formData.get('name') as string)?.trim();
+// Fixed signature: expects 1 argument (formData)
+export async function updateUser(formData: FormData) {
+  const userId = formData.get('userId') as string;
+  const name = (formData.get('fullName') as string)?.trim() || (formData.get('name') as string)?.trim();
   const role = formData.get('role') as string;
+
+  if (!userId) {
+    return { error: 'User ID is required.' };
+  }
 
   try {
     const { users, databases } = await createAdminClient();
@@ -120,16 +119,13 @@ export async function updateUser(userId: string, formData: FormData) {
   }
 }
 
-// 4. Toggle User Status (Activate / Disable) Action
 export async function toggleUserStatus(userId: string, currentStatus: boolean) {
   try {
     const { users, databases } = await createAdminClient();
     const newStatus = !currentStatus;
 
-    // Enable/Disable in Appwrite Auth
     await users.updateStatus(userId, newStatus);
 
-    // Sync status in database profiles collection
     if (APPWRITE_CONFIG.collections.profiles) {
       await databases.updateDocument(
         APPWRITE_CONFIG.databaseId,
@@ -147,15 +143,11 @@ export async function toggleUserStatus(userId: string, currentStatus: boolean) {
   }
 }
 
-// 5. Get Users List (For Admin Panel)
 export async function getUsers() {
   try {
     const { users, databases } = await createAdminClient();
-
-    // Fetch Auth users list from Appwrite
     const response = await users.list();
 
-    // Fetch database profiles if collection exists
     let profilesMap: Record<string, any> = {};
     if (APPWRITE_CONFIG.collections.profiles) {
       try {
@@ -172,12 +164,11 @@ export async function getUsers() {
       }
     }
 
-    // Combine Auth user details with Database profile details
     const formattedUsers = response.users.map((u) => {
       const profile = profilesMap[u.$id];
       return {
         $id: u.$id,
-        name: u.name || profile?.fullName || u.email,
+        fullName: profile?.fullName || u.name || u.email,
         email: u.email,
         role: profile?.role || 'user',
         isActive: profile?.isActive ?? u.status,
