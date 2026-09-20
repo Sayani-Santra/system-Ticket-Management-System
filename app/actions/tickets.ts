@@ -243,14 +243,40 @@ export async function updateTicketStatus(
 }
 
 // 3. Resolve Ticket Action
-export async function resolveTicket(ticketId: string, resolutionNote: string) {
-  if (!resolutionNote?.trim()) {
-    return { error: 'A resolution note is required to resolve a ticket.' };
+
+
+
+
+export async function resolveTicket({
+  ticketId,
+  resolutionDescription,
+}: {
+  ticketId: string;
+  resolutionDescription: string;
+}) {
+  try {
+    const { databases } = await createSessionClient();
+
+    // Update document in Appwrite Database
+    await databases.updateDocument(
+      APPWRITE_CONFIG.databaseId,
+      APPWRITE_CONFIG.collections.tickets,
+      ticketId,
+      {
+        status: 'resolved',
+        resolutionNote: resolutionDescription, // Maps description to your Appwrite field
+      }
+    );
+
+    // Refresh page cache so UI immediately shows updated state
+    revalidatePath(`/tickets/${ticketId}`);
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Failed to resolve ticket:', error);
+    return { error: error.message || 'Failed to update ticket status' };
   }
-
-  return updateTicketStatus(ticketId, 'resolved', resolutionNote);
 }
-
 // 4. Reopen Ticket Action
 export async function reopenTicket(ticketId: string) {
   const { user } = await getCurrentUser();

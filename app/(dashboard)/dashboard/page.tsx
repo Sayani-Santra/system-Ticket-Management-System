@@ -1,7 +1,7 @@
 import { getUserProfile } from '@/app/actions/users';
 import { getDashboardMetrics } from '@/app/actions/tickets';
 import { UserDashboard } from './_components/UserDashboard';
-import { ServerAdminDashboard } from './_components/ServerAdminDashboard';
+// import { ServerAdminDashboard } from './_components/ServerAdminDashboard';
 import { SuperAdminDashboard } from './_components/SuperAdminDashboard';
 import { ReportsDashboard } from './_components/ReportsDashboard';
 
@@ -33,13 +33,13 @@ export default async function DashboardPage() {
       </section>
 
       {/* 3. Server Admin Dashboard */}
-      <section className="space-y-3">
+      {/* <section className="space-y-3">
         <h2 className="text-xl font-semibold text-slate-800 border-b pb-2">Server Admin Dashboard</h2>
         <ServerAdminDashboard
           stats={metrics.serverAdmin.stats}
           recentUpdates={metrics.serverAdmin.recentUpdates as any}
         />
-      </section>
+      </section> */}
 
       {/* 4. User Dashboard */}
       <section className="space-y-3">

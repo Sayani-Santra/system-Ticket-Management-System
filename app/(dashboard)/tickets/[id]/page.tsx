@@ -3,7 +3,7 @@ import { APPWRITE_CONFIG } from '@/app/lib/appwrite/config';
 import { getCurrentUser } from '@/app/actions/auth';
 import { resolveTicket, getTicketComments, addComment, getAdminUsers } from '@/app/actions/tickets';
 import { ServerAdminControlPanel } from '@/app/components/ServerAdminControlPanel';
-import ReassignTicketForm from './ReassignTicketForm'; // Adjust import path if needed
+import ReassignTicketForm from './ReassignTicketForm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 
@@ -39,19 +39,6 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
     getTicketComments(id),
     isSuperAdmin ? getAdminUsers() : Promise.resolve({ admins: [] }),
   ]);
-
-  // Server Action handler for resolving tickets
-  async function handleResolve(formData: FormData) {
-    'use server';
-    const note = formData.get('resolutionNote') as string;
-    await resolveTicket(id, note);
-  }
-
-  // Server Action handler for adding comments
-  async function handleAddComment(formData: FormData) {
-    'use server';
-    await addComment(formData);
-  }
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -89,7 +76,7 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
           </div>
           <div>
             <span className="text-gray-500 block text-xs">Assigned To</span>
-            <span className="font-medium text-purple-900 font-semibold">
+            <span className="text-purple-900 font-semibold">
               {ticket.assignedToName || ticket.assignedToId || 'Unassigned'}
             </span>
           </div>
@@ -131,7 +118,7 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
         <ServerAdminControlPanel ticket={JSON.parse(JSON.stringify(ticket))} />
       )}
 
-      {/* Super Admin Reassignment Controls (Using ReassignTicketForm) */}
+      {/* Super Admin Reassignment Controls */}
       {isSuperAdmin && (
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 shadow-sm space-y-3">
           <h2 className="text-sm font-bold text-purple-900 uppercase tracking-wide">
@@ -184,7 +171,13 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
         </div>
 
         {/* Add Comment Form */}
-        <form action={handleAddComment} className="pt-4 border-t space-y-3">
+        <form
+          action={async (formData: FormData) => {
+            'use server';
+            await addComment(formData);
+          }}
+          className="pt-4 border-t space-y-3"
+        >
           <input type="hidden" name="ticketId" value={id} />
           <textarea
             name="body"
@@ -211,24 +204,48 @@ export default async function TicketDetailPage({ params }: TicketPageProps) {
         </form>
       </div>
 
-      {/* Support Staff Resolution Form */}
-      {isAdmin && ticket.status !== 'resolved' && (
+      {/* Support Staff Resolution Box */}
+      {isAdmin && (
         <div className="bg-white rounded-lg border p-6 shadow-sm space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Resolve Ticket</h2>
-          <form action={handleResolve} className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {ticket.status === 'resolved' ? 'Ticket Resolution' : 'Resolve Ticket'}
+            </h2>
+            {ticket.status === 'resolved' && (
+              <span className="text-xs bg-emerald-100 text-emerald-800 font-medium px-2.5 py-1 rounded-full">
+                Resolved
+              </span>
+            )}
+          </div>
+
+          <form
+            action={async (formData: FormData) => {
+              'use server';
+              const note = formData.get('resolutionNote') as string;
+              await resolveTicket({
+                ticketId: id,
+                resolutionDescription: note,
+              });
+            }}
+            className="space-y-3"
+          >
             <textarea
               name="resolutionNote"
               required
               rows={3}
+              defaultValue={ticket.resolutionNote || ''}
               placeholder="Provide details on how the issue was resolved..."
               className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-green-600 text-white font-medium rounded-md text-sm hover:bg-green-700 transition"
-            >
-              Mark as Resolved
-            </button>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="px-4 py-2 bg-green-600 text-white font-medium rounded-md text-sm hover:bg-green-700 transition cursor-pointer"
+              >
+                {ticket.status === 'resolved' ? 'Update Resolution Note' : 'Mark as Resolved'}
+              </button>
+            </div>
           </form>
         </div>
       )}
