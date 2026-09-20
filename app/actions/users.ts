@@ -10,7 +10,7 @@ export async function getUserProfile() {
   const { user, role } = await getCurrentUser();
 
   if (!user) {
-    throw new Error('Unauthorized');
+    return null;
   }
 
   try {
