@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { getTickets, getAdminUsers } from '@/app/actions/tickets';
 import { getCurrentUser } from '@/app/actions/auth';
 
+// 1. FORCE DYNAMIC RENDERING (Fixes Next.js stale cache issue)
+export const dynamic = 'force-dynamic';
+
 interface TicketsPageProps {
   searchParams: Promise<{
     status?: string;
@@ -118,18 +121,20 @@ export default async function TicketsPage({ searchParams }: TicketsPageProps) {
           </div>
         ) : (
           tickets.map((ticket: any) => {
-            // Find staff member in the admins list by ID
+            const assignedId = ticket.assignedToId || ticket.assignedTo;
             const assignedAdmin = admins?.find(
-              (a: any) => (a.id || a.$id) === ticket.assignedToId
+              (a: any) => (a.id || a.$id) === assignedId
             );
 
-            // Determine display name logic
             let assignedStaffName = null;
-            if (ticket.assignedToId) {
+            if (assignedId) {
               assignedStaffName = assignedAdmin
                 ? assignedAdmin.name
                 : ticket.assignedToName || 'Assigned Staff';
             }
+
+            // Case-insensitive Priority formatting
+            const ticketPriority = (ticket.priority || 'medium').toLowerCase();
 
             return (
               <div
@@ -178,9 +183,9 @@ export default async function TicketsPage({ searchParams }: TicketsPageProps) {
                   <div className="flex items-center gap-3 shrink-0">
                     <span
                       className={`px-2.5 py-0.5 text-xs font-bold rounded uppercase ${
-                        ticket.priority === 'critical' || ticket.priority === 'high'
+                        ticketPriority === 'critical' || ticketPriority === 'high'
                           ? 'bg-red-100 text-red-700'
-                          : ticket.priority === 'medium'
+                          : ticketPriority === 'medium'
                           ? 'bg-blue-100 text-blue-700'
                           : 'bg-gray-100 text-gray-700'
                       }`}

@@ -1,4 +1,9 @@
+
 import React from "react";
+
+// =====================================================
+// TYPES
+// =====================================================
 
 interface AdminPerformance {
   name: string;
@@ -7,63 +12,123 @@ interface AdminPerformance {
   avgResolutionTimeHours: string;
 }
 
-interface ReportsDashboardProps {
-  reports: {
-    totalTicketsCount: number;
-    openTicketsCount: number;
-    closedTicketsCount: number;
-    reopenedTicketsCount: number;
-    escalatedTicketsCount: number;
-    ticketsByCategory: Record<string, number>;
-    ticketsByPriority: Record<string, number>;
-    ticketsByAdmin: Record<string, number>;
-    avgResolutionTimeHours: string;
-    adminPerformanceSummary: AdminPerformance[];
-  };
+interface ReportsData {
+  totalTicketsCount: number;
+  openTicketsCount: number;
+  closedTicketsCount: number;
+  reopenedTicketsCount: number;
+  escalatedTicketsCount: number;
+
+  ticketsByCategory: Record<string, number>;
+  ticketsByPriority: Record<string, number>;
+  ticketsByAdmin: Record<string, number>;
+
+  avgResolutionTimeHours: string;
+
+  adminPerformanceSummary: AdminPerformance[];
 }
+
+interface ReportsDashboardProps {
+  reports: ReportsData;
+}
+
+// =====================================================
+// COMPONENT
+// =====================================================
 
 export function ReportsDashboard({
   reports,
 }: ReportsDashboardProps) {
-  const total = reports.totalTicketsCount;
+  // ---------------------------------------------------
+  // Safe fallback values
+  // ---------------------------------------------------
+
+  const ticketsByCategory =
+    reports?.ticketsByCategory || {};
+
+  const ticketsByPriority =
+    reports?.ticketsByPriority || {};
+
+  const ticketsByAdmin =
+    reports?.ticketsByAdmin || {};
+
+  const adminPerformanceSummary =
+    reports?.adminPerformanceSummary || [];
+
+  const total =
+    reports?.totalTicketsCount || 0;
+
+  // ---------------------------------------------------
+  // Percentages
+  // ---------------------------------------------------
 
   const closedPercentage =
     total > 0
-      ? Math.round((reports.closedTicketsCount / total) * 100)
+      ? Math.round(
+          (reports.closedTicketsCount / total) * 100
+        )
       : 0;
 
   const openPercentage =
     total > 0
-      ? Math.round((reports.openTicketsCount / total) * 100)
+      ? Math.round(
+          (reports.openTicketsCount / total) * 100
+        )
       : 0;
 
   const reopenedPercentage =
     total > 0
-      ? Math.round((reports.reopenedTicketsCount / total) * 100)
+      ? Math.round(
+          (reports.reopenedTicketsCount / total) * 100
+        )
       : 0;
 
   const escalatedPercentage =
     total > 0
-      ? Math.round((reports.escalatedTicketsCount / total) * 100)
+      ? Math.round(
+          (reports.escalatedTicketsCount / total) * 100
+        )
       : 0;
 
+  // ---------------------------------------------------
+  // Admin maximum
+  // ---------------------------------------------------
+
   const maxAdminTickets = Math.max(
-    ...Object.values(reports.ticketsByAdmin),
+    ...Object.values(ticketsByAdmin),
     1
   );
 
+  // ---------------------------------------------------
+  // Priority styles
+  // ---------------------------------------------------
+
   const priorityStyles: Record<string, string> = {
-    critical: "bg-red-100 text-red-700 border-red-200",
-    high: "bg-orange-100 text-orange-700 border-orange-200",
-    medium: "bg-yellow-100 text-yellow-700 border-yellow-200",
-    low: "bg-green-100 text-green-700 border-green-200",
+    critical:
+      "bg-red-100 text-red-700 border-red-200",
+
+    high:
+      "bg-orange-100 text-orange-700 border-orange-200",
+
+    medium:
+      "bg-yellow-100 text-yellow-700 border-yellow-200",
+
+    low:
+      "bg-green-100 text-green-700 border-green-200",
   };
+
+  // =====================================================
+  // RETURN
+  // =====================================================
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* ================= HEADER ================= */}
+        {/* =================================================
+            HEADER
+        ================================================= */}
+
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
           <div>
@@ -72,12 +137,13 @@ export function ReportsDashboard({
             </h1>
 
             <p className="text-sm text-slate-500 mt-1">
-              Monitor ticket activity, performance and resolution metrics.
+              Monitor ticket activity, performance and
+              resolution metrics.
             </p>
           </div>
 
           <div className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm">
-            <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span>
+            <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full" />
 
             <span className="text-sm font-medium text-slate-600">
               System Reports
@@ -86,10 +152,14 @@ export function ReportsDashboard({
 
         </div>
 
-        {/* ================= KPI CARDS ================= */}
+        {/* =================================================
+            KPI CARDS
+        ================================================= */}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
 
-          {/* Total */}
+          {/* TOTAL */}
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition">
 
             <div className="flex items-start justify-between">
@@ -116,7 +186,8 @@ export function ReportsDashboard({
 
           </div>
 
-          {/* Open */}
+          {/* OPEN */}
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition">
 
             <div className="flex items-start justify-between">
@@ -144,13 +215,16 @@ export function ReportsDashboard({
             <div className="mt-4 h-1.5 bg-slate-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-blue-500 rounded-full"
-                style={{ width: `${openPercentage}%` }}
+                style={{
+                  width: `${openPercentage}%`,
+                }}
               />
             </div>
 
           </div>
 
-          {/* Closed */}
+          {/* CLOSED */}
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition">
 
             <div className="flex items-start justify-between">
@@ -178,13 +252,16 @@ export function ReportsDashboard({
             <div className="mt-4 h-1.5 bg-slate-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-emerald-500 rounded-full"
-                style={{ width: `${closedPercentage}%` }}
+                style={{
+                  width: `${closedPercentage}%`,
+                }}
               />
             </div>
 
           </div>
 
-          {/* Reopened */}
+          {/* REOPENED */}
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition">
 
             <div className="flex items-start justify-between">
@@ -212,13 +289,16 @@ export function ReportsDashboard({
             <div className="mt-4 h-1.5 bg-slate-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-amber-500 rounded-full"
-                style={{ width: `${reopenedPercentage}%` }}
+                style={{
+                  width: `${reopenedPercentage}%`,
+                }}
               />
             </div>
 
           </div>
 
-          {/* Escalated */}
+          {/* ESCALATED */}
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition">
 
             <div className="flex items-start justify-between">
@@ -246,13 +326,16 @@ export function ReportsDashboard({
             <div className="mt-4 h-1.5 bg-slate-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-red-500 rounded-full"
-                style={{ width: `${escalatedPercentage}%` }}
+                style={{
+                  width: `${escalatedPercentage}%`,
+                }}
               />
             </div>
 
           </div>
 
-          {/* Average Resolution */}
+          {/* AVG RESOLUTION */}
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 hover:shadow-md transition">
 
             <div className="flex items-start justify-between">
@@ -281,10 +364,16 @@ export function ReportsDashboard({
 
         </div>
 
-        {/* ================= ANALYTICS ================= */}
+        {/* =================================================
+            ANALYTICS
+        ================================================= */}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-          {/* CATEGORY */}
+          {/* =================================================
+              CATEGORY
+          ================================================= */}
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
 
             <div className="p-5 border-b border-slate-100">
@@ -311,26 +400,32 @@ export function ReportsDashboard({
 
             <div className="p-5">
 
-              {Object.keys(reports.ticketsByCategory).length === 0 ? (
+              {Object.keys(ticketsByCategory).length === 0 ? (
 
                 <div className="py-10 text-center">
-                  <div className="text-3xl mb-2">📭</div>
+
+                  <div className="text-3xl mb-2">
+                    📭
+                  </div>
 
                   <p className="text-sm text-slate-400">
                     No category data available
                   </p>
+
                 </div>
 
               ) : (
 
                 <div className="space-y-4">
 
-                  {Object.entries(reports.ticketsByCategory).map(
+                  {Object.entries(ticketsByCategory).map(
                     ([category, count]) => {
 
                       const percentage =
                         total > 0
-                          ? Math.round((count / total) * 100)
+                          ? Math.round(
+                              (count / total) * 100
+                            )
                           : 0;
 
                       return (
@@ -376,7 +471,10 @@ export function ReportsDashboard({
 
           </div>
 
-          {/* PRIORITY */}
+          {/* =================================================
+              PRIORITY
+          ================================================= */}
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
 
             <div className="p-5 border-b border-slate-100">
@@ -403,30 +501,38 @@ export function ReportsDashboard({
 
             <div className="p-5">
 
-              {Object.keys(reports.ticketsByPriority).length === 0 ? (
+              {Object.keys(ticketsByPriority).length === 0 ? (
 
                 <div className="py-10 text-center">
-                  <div className="text-3xl mb-2">📭</div>
+
+                  <div className="text-3xl mb-2">
+                    📭
+                  </div>
 
                   <p className="text-sm text-slate-400">
                     No priority data available
                   </p>
+
                 </div>
 
               ) : (
 
                 <div className="space-y-3">
 
-                  {Object.entries(reports.ticketsByPriority).map(
+                  {Object.entries(ticketsByPriority).map(
                     ([priority, count]) => {
 
                       const percentage =
                         total > 0
-                          ? Math.round((count / total) * 100)
+                          ? Math.round(
+                              (count / total) * 100
+                            )
                           : 0;
 
                       const badge =
-                        priorityStyles[priority.toLowerCase()] ||
+                        priorityStyles[
+                          priority.toLowerCase()
+                        ] ||
                         "bg-slate-100 text-slate-600 border-slate-200";
 
                       return (
@@ -473,7 +579,10 @@ export function ReportsDashboard({
 
           </div>
 
-          {/* ADMIN */}
+          {/* =================================================
+              ADMIN
+          ================================================= */}
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
 
             <div className="p-5 border-b border-slate-100">
@@ -500,26 +609,32 @@ export function ReportsDashboard({
 
             <div className="p-5">
 
-              {Object.keys(reports.ticketsByAdmin).length === 0 ? (
+              {Object.keys(ticketsByAdmin).length === 0 ? (
 
                 <div className="py-10 text-center">
-                  <div className="text-3xl mb-2">👥</div>
+
+                  <div className="text-3xl mb-2">
+                    👥
+                  </div>
 
                   <p className="text-sm text-slate-400">
                     No tickets assigned yet
                   </p>
+
                 </div>
 
               ) : (
 
                 <div className="space-y-4">
 
-                  {Object.entries(reports.ticketsByAdmin).map(
+                  {Object.entries(ticketsByAdmin).map(
                     ([adminName, count]) => {
 
-                      const percentage = Math.round(
-                        (count / maxAdminTickets) * 100
-                      );
+                      const percentage =
+                        Math.round(
+                          (count / maxAdminTickets) *
+                            100
+                        );
 
                       return (
                         <div key={adminName}>
@@ -572,7 +687,10 @@ export function ReportsDashboard({
 
         </div>
 
-        {/* ================= PERFORMANCE SUMMARY ================= */}
+        {/* =================================================
+            ADMIN PERFORMANCE SUMMARY
+        ================================================= */}
+
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
 
           <div className="p-5 md:p-6 border-b border-slate-100">
@@ -580,17 +698,20 @@ export function ReportsDashboard({
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
 
               <div>
+
                 <h2 className="text-lg font-semibold text-slate-900">
                   Admin Performance Summary
                 </h2>
 
                 <p className="text-sm text-slate-500 mt-1">
-                  Monitor assignment, resolution and response performance.
+                  Monitor assignment, resolution and
+                  response performance.
                 </p>
+
               </div>
 
               <div className="px-3 py-1.5 rounded-lg bg-slate-100 text-xs font-medium text-slate-600">
-                {reports.adminPerformanceSummary.length} Admins
+                {adminPerformanceSummary.length} Admins
               </div>
 
             </div>
@@ -599,7 +720,7 @@ export function ReportsDashboard({
 
           <div className="overflow-x-auto">
 
-            {reports.adminPerformanceSummary.length === 0 ? (
+            {adminPerformanceSummary.length === 0 ? (
 
               <div className="py-14 text-center">
 
@@ -622,6 +743,7 @@ export function ReportsDashboard({
               <table className="w-full min-w-[700px]">
 
                 <thead>
+
                   <tr className="bg-slate-50 border-b border-slate-200">
 
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -645,11 +767,12 @@ export function ReportsDashboard({
                     </th>
 
                   </tr>
+
                 </thead>
 
                 <tbody className="divide-y divide-slate-100">
 
-                  {reports.adminPerformanceSummary.map(
+                  {adminPerformanceSummary.map(
                     (admin, idx) => {
 
                       const resolutionRate =
@@ -663,11 +786,12 @@ export function ReportsDashboard({
 
                       return (
                         <tr
-                          key={idx}
+                          key={`${admin.name}-${idx}`}
                           className="hover:bg-slate-50 transition"
                         >
 
-                          {/* Admin */}
+                          {/* ADMIN */}
+
                           <td className="px-6 py-4">
 
                             <div className="flex items-center gap-3">
@@ -679,6 +803,7 @@ export function ReportsDashboard({
                               </div>
 
                               <div>
+
                                 <p className="text-sm font-semibold text-slate-900">
                                   {admin.name}
                                 </p>
@@ -686,13 +811,15 @@ export function ReportsDashboard({
                                 <p className="text-xs text-slate-400">
                                   Server Admin
                                 </p>
+
                               </div>
 
                             </div>
 
                           </td>
 
-                          {/* Assigned */}
+                          {/* ASSIGNED */}
+
                           <td className="px-6 py-4">
 
                             <span className="inline-flex items-center px-3 py-1 rounded-lg bg-blue-50 text-blue-700 text-sm font-semibold">
@@ -701,7 +828,8 @@ export function ReportsDashboard({
 
                           </td>
 
-                          {/* Resolved */}
+                          {/* RESOLVED */}
+
                           <td className="px-6 py-4">
 
                             <span className="inline-flex items-center px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-sm font-semibold">
@@ -710,7 +838,8 @@ export function ReportsDashboard({
 
                           </td>
 
-                          {/* Resolution Rate */}
+                          {/* RESOLUTION RATE */}
+
                           <td className="px-6 py-4 min-w-[180px]">
 
                             <div className="flex items-center gap-3">
@@ -734,7 +863,8 @@ export function ReportsDashboard({
 
                           </td>
 
-                          {/* Avg Time */}
+                          {/* AVG TIME */}
+
                           <td className="px-6 py-4">
 
                             <div className="flex items-center gap-2">
@@ -766,24 +896,31 @@ export function ReportsDashboard({
 
         </div>
 
-        {/* ================= BOTTOM SUMMARY ================= */}
+        {/* =================================================
+            BOTTOM SUMMARY
+        ================================================= */}
+
         <div className="bg-slate-900 rounded-2xl p-6 text-white">
 
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
 
             <div>
+
               <h2 className="text-lg font-semibold">
                 Overall System Performance
               </h2>
 
               <p className="text-sm text-slate-400 mt-1">
-                Current overview of ticket resolution and system activity.
+                Current overview of ticket resolution and
+                system activity.
               </p>
+
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
 
               <div>
+
                 <p className="text-2xl font-bold text-emerald-400">
                   {closedPercentage}%
                 </p>
@@ -791,9 +928,11 @@ export function ReportsDashboard({
                 <p className="text-xs text-slate-400 mt-1">
                   Resolution Rate
                 </p>
+
               </div>
 
               <div>
+
                 <p className="text-2xl font-bold text-blue-400">
                   {reports.openTicketsCount}
                 </p>
@@ -801,9 +940,11 @@ export function ReportsDashboard({
                 <p className="text-xs text-slate-400 mt-1">
                   Open
                 </p>
+
               </div>
 
               <div>
+
                 <p className="text-2xl font-bold text-amber-400">
                   {reports.reopenedTicketsCount}
                 </p>
@@ -811,9 +952,11 @@ export function ReportsDashboard({
                 <p className="text-xs text-slate-400 mt-1">
                   Reopened
                 </p>
+
               </div>
 
               <div>
+
                 <p className="text-2xl font-bold text-red-400">
                   {reports.escalatedTicketsCount}
                 </p>
@@ -821,6 +964,7 @@ export function ReportsDashboard({
                 <p className="text-xs text-slate-400 mt-1">
                   Escalated
                 </p>
+
               </div>
 
             </div>
@@ -830,6 +974,7 @@ export function ReportsDashboard({
           <div className="mt-6">
 
             <div className="flex justify-between text-xs mb-2">
+
               <span className="text-slate-400">
                 Overall Resolution Progress
               </span>
@@ -837,6 +982,7 @@ export function ReportsDashboard({
               <span className="font-semibold text-slate-200">
                 {closedPercentage}%
               </span>
+
             </div>
 
             <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
@@ -858,3 +1004,4 @@ export function ReportsDashboard({
     </div>
   );
 }
+
